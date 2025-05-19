@@ -64,6 +64,7 @@ class Asignatura {
 class Acta {
     private Asignatura asignatura;
     private Profesor profesor;
+    private List<Persona> alumnos = new ArrayList<>();
     private Map<String, Double> calificaciones;
     private String codigoVerificacion;
     private boolean generada = false;
@@ -73,19 +74,19 @@ class Acta {
         this.profesor = profesor;
     }
 
-    public void generar(Persona[] alumnos) {
+    public void generar(Persona[] alumnosArray) {
         if (generada) {
             throw new IllegalStateException("El acta ya fue generada.");
         }
-   
+        this.alumnos = Arrays.asList(alumnosArray);
+
         Map<String, Double> temp = new HashMap<>();
-        for (Persona p : alumnos) {
+        for (Persona p : this.alumnos) {
             temp.put(p.getCarnet(), p.calcularPromedio());
         }
         this.calificaciones = Collections.unmodifiableMap(temp);
         this.codigoVerificacion = hashSHA256(concatNotas(temp));
         generada = true;
-        System.out.println("✅ Acta generada. Código verificación: " + codigoVerificacion);
     }
 
     private String concatNotas(Map<String, Double> map) {
@@ -94,7 +95,7 @@ class Acta {
            .sorted(Map.Entry.comparingByKey())
            .forEach(e -> sb.append(e.getKey())
                            .append(":")
-                           .append(e.getValue())
+                           .append(String.format(Locale.ROOT, "%.2f", e.getValue()))
                            .append(";"));
         return sb.toString();
     }
@@ -113,27 +114,49 @@ class Acta {
         }
     }
 
-
     public boolean verificarIntegridad() {
         String actual = hashSHA256(concatNotas(this.calificaciones));
-        boolean ok = actual.equals(this.codigoVerificacion);
-        System.out.println(ok
-            ? "🔒 Integridad OK."
-            : "⚠️ Integridad FALLIDA!");
-        return ok;
+        return actual.equals(this.codigoVerificacion);
     }
 
+    public void imprimirActa() {
+        System.out.println();
+        System.out.println("════════════════════════════════════════════════════");
+        System.out.printf(" Acta de %s (%s) - %s%n",
+            asignatura.getNombre(),
+            asignatura.getCodigo(),
+            asignatura.getPeriodo());
+
+        System.out.printf(" Profesor: %s [%s]%n",
+            profesor.getNombre(),
+            profesor.getDepartamento());
+
+        System.out.println("════════════════════════════════════════════════════");
+        System.out.printf("%-8s │ %-20s │ %7s%n",
+            "Carnet", "Nombre", "Promedio");
+
+        System.out.println("─────────┼──────────────────────┼─────────");
+        for (Persona p : alumnos) {
+            double prom = calificaciones.get(p.getCarnet());
+            System.out.printf("%-8s │ %-20s │ %7.2f%n",
+                p.getCarnet(),
+                p.getNombre(),
+                prom);
+        }
+        System.out.println("════════════════════════════════════════════════════");
+        System.out.printf(" Código verificación: %s%n", codigoVerificacion);
+        System.out.println("════════════════════════════════════════════════════");
+    }
 
     public Map<String, Double> getCalificaciones() {
         return calificaciones;
     }
-
     public String getCodigoVerificacion() {
         return codigoVerificacion;
     }
 }
 
-public class Reto6 {
+public class Reto6{
     public static void main(String[] args) {
         Persona[] alumnos = {
             new Persona("Ana",    "C001", 8.0, 9.0, 10.0),
@@ -148,16 +171,19 @@ public class Reto6 {
 
         Acta acta = new Acta(asig, prof);
         acta.generar(alumnos);
+        acta.imprimirActa();
 
         try {
             acta.getCalificaciones().put("C002", 10.0);
         } catch (UnsupportedOperationException e) {
-            System.out.println("❌ No se puede cambiar la calificación almacenada.");
+            System.out.println("No se puede cambiar la calificación almacenada");
         }
 
         alumnos[1].setNotaFinal(10.0);
 
-        acta.verificarIntegridad();
+        boolean ok = acta.verificarIntegridad();
+        System.out.println(ok
+            ? "Integridad OK."
+            : "Integridad FALLIDA!");
     }
 }
-
